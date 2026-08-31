@@ -39,7 +39,11 @@ router.post('/register', async (req, res) => {
     const payload = { userId: user._id };
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-    res.status(201).json({ token, message: 'User registered successfully' });
+    // Exclude password from the returned user object
+    const userResponse = user.toObject();
+    delete userResponse.password;
+
+    res.status(201).json({ token, user: userResponse, message: 'User registered successfully' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error during registration' });
@@ -68,7 +72,11 @@ router.post('/login', async (req, res) => {
     const payload = { userId: user._id };
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-    res.json({ token, message: 'Login successful' });
+    // Exclude password from the returned user object
+    const userResponse = user.toObject();
+    delete userResponse.password;
+
+    res.json({ token, user: userResponse, message: 'Login successful' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error during login' });

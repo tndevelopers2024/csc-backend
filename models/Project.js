@@ -53,11 +53,58 @@ const projectSchema = new mongoose.Schema({
     mimetype: String,
     size: Number
   }],
+  quotationFiles: [{
+    filename: String,
+    originalname: String,
+    path: String,
+    mimetype: String,
+    size: Number
+  }],
+  poFile: {
+    filename: String,
+    originalname: String,
+    path: String,
+    mimetype: String,
+    size: Number
+  },
+  completedFiles: [{
+    filename: String,
+    originalname: String,
+    path: String,
+    mimetype: String,
+    size: Number
+  }],
+  invoiceFiles: [{
+    filename: String,
+    originalname: String,
+    path: String,
+    mimetype: String,
+    size: Number
+  }],
+  estimatedHours: {
+    type: Number,
+    default: 0
+  },
+  freeHoursApplied: {
+    type: Number,
+    default: 0
+  },
+  billableHours: {
+    type: Number,
+    default: 0
+  },
   status: {
     type: String,
-    enum: ['Pending Quote', 'Quote Ready', 'Approved', 'In Progress', 'Under Review', 'Completed', 'Cancelled'],
+    enum: ['Pending Quote', 'Quote Ready', 'Approved', 'In Progress', 'QA Review', 'Delivered', 'Under Review', 'Completed', 'Cancelled', 'Requested', 'Quoted', 'Rejected', 'Revision Requested', 'Ongoing', 'Reported'],
     default: 'Pending Quote'
   },
+  statusHistory: [{
+    status: String,
+    date: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   createdAt: {
     type: Date,
     default: Date.now

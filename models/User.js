@@ -9,6 +9,7 @@ const userSchema = new mongoose.Schema({
   country: { type: String, required: true },
   role: { type: String, required: true },
   password: { type: String, required: true },
+  freeHoursRemaining: { type: Number, default: 3 },
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

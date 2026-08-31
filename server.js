@@ -14,9 +14,13 @@ app.use(express.json());
 // Routes
 const authRoutes = require('./routes/auth');
 const projectRoutes = require('./routes/projects');
+const adminRoutes = require('./routes/admin');
+const notificationRoutes = require('./routes/notifications');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Static folder for uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
