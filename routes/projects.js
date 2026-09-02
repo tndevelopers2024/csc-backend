@@ -29,13 +29,14 @@ const upload = multer({
 // POST /api/projects
 // Create a new project
 router.post('/', auth, upload.fields([
-  { name: 'scanFiles', maxCount: 5 },
-  { name: 'referenceImages', maxCount: 5 }
+  { name: 'scanFiles', maxCount: 50 },
+  { name: 'referenceImages', maxCount: 50 }
 ]), async (req, res) => {
   try {
     const {
       title, description, appType, industry, cadOutput, 
-      accuracy, partSize, turnaround, nda, useFreeHours
+      accuracy, partSize, turnaround, nda, useFreeHours,
+      uploadMethod, links
     } = req.body;
 
     // Map uploaded files to schema structure
@@ -65,12 +66,18 @@ router.post('/', auth, upload.fields([
       turnaround,
       nda,
       useFreeHours,
+      uploadMethod,
+      links: links ? (Array.isArray(links) ? links : [links]) : [],
       scanFiles,
       referenceImages,
       statusHistory: [{ status: 'Pending Quote' }]
     });
 
     const savedProject = await newProject.save();
+
+    if (req.io) {
+      req.io.to('admin').emit('newProject', savedProject);
+    }
 
     res.status(201).json({
       message: 'Project created successfully',
@@ -198,10 +205,46 @@ router.put('/:id/status', auth, upload.single('poFile'), async (req, res) => {
 
     const updatedProject = await project.save();
     
+    if (req.io) {
+      req.io.to('admin').emit('projectUpdated', updatedProject);
+      req.io.to(updatedProject.userId.toString()).emit('projectUpdated', updatedProject);
+    }
+
     res.json({ message: 'Status updated successfully', project: updatedProject });
   } catch (error) {
     console.error('Error updating project status:', error);
     res.status(500).json({ message: 'Server error while updating status' });
+  }
+});
+
+// PUT /api/projects/:id/pay
+// Mark a project's invoice as paid via PayPal
+router.put('/:id/pay', auth, async (req, res) => {
+  try {
+    const project = await Project.findOne({ 
+      _id: req.params.id, 
+      userId: req.user.userId 
+    });
+    
+    if (!project) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+    
+    // Clear poFile and billableHours to indicate payment is complete
+    project.poFile = undefined;
+    project.billableHours = 0;
+    
+    const updatedProject = await project.save();
+    
+    if (req.io) {
+      req.io.to('admin').emit('projectUpdated', updatedProject);
+      req.io.to(updatedProject.userId.toString()).emit('projectUpdated', updatedProject);
+    }
+    
+    res.json({ message: 'Payment recorded successfully', project: updatedProject });
+  } catch (error) {
+    console.error('Error recording payment:', error);
+    res.status(500).json({ message: 'Server error while recording payment' });
   }
 });
 

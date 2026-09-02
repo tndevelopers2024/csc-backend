@@ -95,6 +95,30 @@ router.get('/me', auth, async (req, res) => {
   }
 });
 
+// @route   PUT /api/auth/preferences
+// @desc    Update user notification preferences
+router.put('/preferences', auth, async (req, res) => {
+  try {
+    const { platformPrefs } = req.body;
+    
+    let user = await User.findById(req.user.userId).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.notificationPreferences = {
+      ...user.notificationPreferences.toObject(),
+      ...platformPrefs
+    };
+
+    await user.save();
+    res.json({ message: 'Preferences updated successfully', user });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error updating preferences' });
+  }
+});
+
 module.exports = router;
 
 // Just for testing

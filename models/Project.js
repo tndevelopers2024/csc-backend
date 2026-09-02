@@ -39,6 +39,14 @@ const projectSchema = new mongoose.Schema({
   useFreeHours: {
     type: String
   },
+  uploadMethod: {
+    type: String,
+    enum: ['Upload', 'Link'],
+    default: 'Upload'
+  },
+  links: [{
+    type: String
+  }],
   scanFiles: [{
     filename: String,
     originalname: String,
@@ -85,6 +93,9 @@ const projectSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  fileEstimatedHours: [{
+    type: Number
+  }],
   freeHoursApplied: {
     type: Number,
     default: 0

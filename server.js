@@ -7,6 +7,38 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+const http = require('http');
+const { Server } = require('socket.io');
+
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*", // Allow all origins for development
+    methods: ["GET", "POST", "PUT", "DELETE"]
+  }
+});
+
+// Middleware to expose io to all routes
+app.use((req, res, next) => {
+  req.io = io;
+  next();
+});
+
+// Socket Connection handling
+io.on('connection', (socket) => {
+  console.log('Client connected:', socket.id);
+  
+  // Clients can join specific rooms based on their user ID or 'admin'
+  socket.on('joinRoom', (roomId) => {
+    socket.join(roomId);
+    console.log(`Socket ${socket.id} joined room: ${roomId}`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
+  });
+});
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -36,7 +68,7 @@ app.get('/', (req, res) => {
 });
 
 // Start Server
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
 

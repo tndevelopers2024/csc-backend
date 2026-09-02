@@ -44,7 +44,7 @@ router.get('/projects/stats', async (req, res) => {
     const rejected = await Project.countDocuments({ status: 'Rejected' });
     const ongoing = await Project.countDocuments({ status: { $in: ['Ongoing', 'In Progress'] } });
     const reported = await Project.countDocuments({ status: 'Reported' });
-    const completed = await Project.countDocuments({ status: 'Completed' });
+    const completed = await Project.countDocuments({ status: { $in: ['Completed', 'Delivered'] } });
     
     res.json({
       totalQuotations,
@@ -77,6 +77,42 @@ router.get('/projects', async (req, res) => {
   }
 });
 
+// GET /api/admin/users
+// Get all users
+router.get('/users', async (req, res) => {
+  try {
+    const users = await User.find({ role: { $ne: 'admin' } }).sort({ createdAt: -1 });
+    res.json(users);
+  } catch (error) {
+    console.error('Error fetching all users:', error);
+    res.status(500).json({ message: 'Server error while fetching users' });
+  }
+});
+
+// GET /api/admin/users/:id
+// Get a single user and their projects
+router.get('/users/:id', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    const projects = await Project.find({ userId: user._id }).sort({ createdAt: -1 });
+    
+    res.json({
+      user,
+      projects
+    });
+  } catch (error) {
+    console.error('Error fetching user details:', error);
+    if (error.kind === 'ObjectId') {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.status(500).json({ message: 'Server error while fetching user details' });
+  }
+});
+
 // GET /api/admin/projects/:id
 // Get a single project with user info
 router.get('/projects/:id', async (req, res) => {
@@ -102,7 +138,7 @@ router.get('/projects/:id', async (req, res) => {
 // Update project details (like estimated hours or status)
 router.put('/projects/:id', upload.fields([{ name: 'quotationFile', maxCount: 1 }]), async (req, res) => {
   try {
-    const { status, estimatedHours, freeHoursApplied, billableHours } = req.body;
+    const { status, estimatedHours, fileEstimatedHours, freeHoursApplied, billableHours } = req.body;
     const Notification = require('../models/Notification');
     
     const project = await Project.findById(req.params.id);
@@ -118,6 +154,13 @@ router.put('/projects/:id', upload.fields([{ name: 'quotationFile', maxCount: 1 
       statusChanged = true;
     }
     if (estimatedHours !== undefined) project.estimatedHours = Number(estimatedHours);
+    if (fileEstimatedHours !== undefined) {
+      try {
+        project.fileEstimatedHours = JSON.parse(fileEstimatedHours).map(Number);
+      } catch (e) {
+        project.fileEstimatedHours = [];
+      }
+    }
     if (freeHoursApplied !== undefined) project.freeHoursApplied = Number(freeHoursApplied);
     if (billableHours !== undefined) project.billableHours = Number(billableHours);
 
@@ -136,32 +179,47 @@ router.put('/projects/:id', upload.fields([{ name: 'quotationFile', maxCount: 1 
     
     const updatedProject = await project.save();
 
+    // Fetch user once to update hours and check preferences
+    const projUser = await User.findById(project.userId);
+
     // Deduct free hours from user if applied and this is the quote submission
     if (freeHoursApplied && Number(freeHoursApplied) > 0) {
-      const user = await User.findById(project.userId);
-      if (user) {
-        user.freeHoursRemaining = Math.max(0, user.freeHoursRemaining - Number(freeHoursApplied));
-        await user.save();
+      if (projUser) {
+        projUser.freeHoursRemaining = Math.max(0, projUser.freeHoursRemaining - Number(freeHoursApplied));
+        await projUser.save();
       }
     }
 
     // Create Notification
     if (quoteUploaded) {
-      await Notification.create({
-        userId: project.userId,
-        projectId: project._id,
-        title: 'Quote Ready',
-        message: `A quotation has been provided for your project: ${project.title}.`,
-        type: 'QUOTE_READY'
-      });
+      if (projUser && projUser.notificationPreferences?.newQuotes !== false) {
+        await Notification.create({
+          userId: project.userId,
+          projectId: project._id,
+          title: 'Quote Ready',
+          message: `A quotation has been provided for your project: ${project.title}.`,
+          type: 'QUOTE_READY'
+        });
+      }
     } else if (statusChanged) {
-      await Notification.create({
-        userId: project.userId,
-        projectId: project._id,
-        title: 'Project Update',
-        message: `Your project '${project.title}' status changed to ${status}.`,
-        type: 'PROJECT_UPDATE'
-      });
+      if (projUser && projUser.notificationPreferences?.projectStatus !== false) {
+        await Notification.create({
+          userId: project.userId,
+          projectId: project._id,
+          title: 'Project Update',
+          message: `Your project '${project.title}' status changed to ${status}.`,
+          type: 'PROJECT_UPDATE'
+        });
+      }
+    }
+
+    if (req.io) {
+      req.io.to('admin').emit('projectUpdated', updatedProject);
+      req.io.to(updatedProject.userId.toString()).emit('projectUpdated', updatedProject);
+      
+      if (quoteUploaded || statusChanged) {
+        req.io.to(updatedProject.userId.toString()).emit('newNotification');
+      }
     }
 
     res.json(updatedProject);
@@ -212,7 +270,9 @@ router.post('/projects/:id/upload-completed', upload.fields([
 
     const updatedProject = await project.save();
 
-    if (filesUploaded) {
+    const projUser = await User.findById(project.userId);
+
+    if (filesUploaded && projUser?.notificationPreferences?.fileDelivery !== false) {
       await Notification.create({
         userId: project.userId,
         projectId: project._id,
@@ -220,6 +280,15 @@ router.post('/projects/:id/upload-completed', upload.fields([
         message: `Completed CAD files are ready for your project: ${project.title}.`,
         type: 'FILES_DELIVERED'
       });
+    }
+
+    if (req.io) {
+      req.io.to('admin').emit('projectUpdated', updatedProject);
+      req.io.to(updatedProject.userId.toString()).emit('projectUpdated', updatedProject);
+      
+      if (filesUploaded) {
+        req.io.to(updatedProject.userId.toString()).emit('newNotification');
+      }
     }
 
     res.json(updatedProject);
