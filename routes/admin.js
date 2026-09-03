@@ -138,7 +138,7 @@ router.get('/projects/:id', async (req, res) => {
 // Update project details (like estimated hours or status)
 router.put('/projects/:id', upload.fields([{ name: 'quotationFile', maxCount: 1 }]), async (req, res) => {
   try {
-    const { status, estimatedHours, fileEstimatedHours, freeHoursApplied, billableHours } = req.body;
+    const { status, estimatedHours, fileEstimatedHours, freeHoursApplied, billableHours, paymentDeadline } = req.body;
     const Notification = require('../models/Notification');
     
     const project = await Project.findById(req.params.id);
@@ -163,6 +163,7 @@ router.put('/projects/:id', upload.fields([{ name: 'quotationFile', maxCount: 1 
     }
     if (freeHoursApplied !== undefined) project.freeHoursApplied = Number(freeHoursApplied);
     if (billableHours !== undefined) project.billableHours = Number(billableHours);
+    if (paymentDeadline !== undefined) project.paymentDeadline = new Date(paymentDeadline);
 
     let quoteUploaded = false;
     if (req.files && req.files['quotationFile']) {

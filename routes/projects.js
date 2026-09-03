@@ -248,4 +248,32 @@ router.put('/:id/pay', auth, async (req, res) => {
   }
 });
 
+// PUT /api/projects/:id/star
+// Toggle star status of a project
+router.put('/:id/star', auth, async (req, res) => {
+  try {
+    const project = await Project.findOne({ 
+      _id: req.params.id, 
+      userId: req.user.userId 
+    });
+    
+    if (!project) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+    
+    project.isStarred = !project.isStarred;
+    const updatedProject = await project.save();
+    
+    if (req.io) {
+      req.io.to('admin').emit('projectUpdated', updatedProject);
+      req.io.to(updatedProject.userId.toString()).emit('projectUpdated', updatedProject);
+    }
+    
+    res.json({ message: 'Project star status toggled', project: updatedProject });
+  } catch (error) {
+    console.error('Error toggling star:', error);
+    res.status(500).json({ message: 'Server error while toggling star status' });
+  }
+});
+
 module.exports = router;

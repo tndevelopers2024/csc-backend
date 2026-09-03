@@ -116,6 +116,13 @@ const projectSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
+  paymentDeadline: {
+    type: Date
+  },
+  isStarred: {
+    type: Boolean,
+    default: false
+  },
   createdAt: {
     type: Date,
     default: Date.now
