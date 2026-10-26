@@ -149,6 +149,17 @@ router.put('/projects/:id', upload.fields([{ name: 'quotationFile', maxCount: 1 
     let statusChanged = false;
     let oldStatus = project.status;
     if (status && status !== project.status) {
+      if (status === 'Delivered') {
+        const hasScanFiles = project.scanFiles && project.scanFiles.length > 0;
+        const allFilesCompleted = hasScanFiles 
+          ? project.scanFiles.every((_, idx) => Boolean(project.completedFiles?.[idx]))
+          : Boolean(project.completedFiles && project.completedFiles.length > 0);
+        
+        if (!allFilesCompleted) {
+          return res.status(400).json({ message: 'Cannot deliver project: all completed CAD files must be uploaded first.' });
+        }
+      }
+
       project.status = status;
       project.statusHistory.push({ status });
       statusChanged = true;
@@ -246,14 +257,23 @@ router.post('/projects/:id/upload-completed', upload.fields([
     let filesUploaded = false;
     if (req.files) {
       if (req.files['completedFiles']) {
-        const cFiles = req.files['completedFiles'].map(f => ({
-          filename: f.filename,
-          originalname: f.originalname,
-          path: f.path,
-          mimetype: f.mimetype,
-          size: f.size
-        }));
-        project.completedFiles.push(...cFiles);
+        const fileIndices = req.body.fileIndices ? (Array.isArray(req.body.fileIndices) ? req.body.fileIndices : [req.body.fileIndices]) : null;
+        req.files['completedFiles'].forEach((f, i) => {
+          const fileData = {
+            filename: f.filename,
+            originalname: f.originalname,
+            path: f.path,
+            mimetype: f.mimetype,
+            size: f.size
+          };
+          if (fileIndices && fileIndices[i] !== undefined) {
+            const targetIdx = Number(fileIndices[i]);
+            project.completedFiles[targetIdx] = fileData;
+          } else {
+            project.completedFiles.push(fileData);
+          }
+        });
+        project.markModified('completedFiles');
         filesUploaded = true;
       }
       

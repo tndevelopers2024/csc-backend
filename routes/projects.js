@@ -276,4 +276,106 @@ router.put('/:id/star', auth, async (req, res) => {
   }
 });
 
+// POST /api/projects/:id/report-issue
+// Customer reports an issue with project files
+router.post('/:id/report-issue', auth, async (req, res) => {
+  try {
+    const { notes } = req.body;
+    if (!notes || !notes.trim()) {
+      return res.status(400).json({ message: 'Please provide issue notes before submitting.' });
+    }
+
+    const project = await Project.findOne({ 
+      _id: req.params.id, 
+      userId: req.user.userId 
+    });
+
+    if (!project) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    const User = require('../models/User');
+    const Ticket = require('../models/Ticket');
+    const Notification = require('../models/Notification');
+    const user = await User.findById(req.user.userId);
+
+    // Generate ticket ID
+    const currentYear = new Date().getFullYear();
+    const prefix = `#TKT-${currentYear}-`;
+    const regex = new RegExp(`^#TKT-${currentYear}-(\\d+)`);
+    const latestTicket = await Ticket.findOne({ ticketId: regex }).sort({ createdAt: -1 });
+    let sequence = 1;
+    if (latestTicket && latestTicket.ticketId) {
+      const match = latestTicket.ticketId.match(regex);
+      if (match && match[1]) {
+        sequence = parseInt(match[1], 10) + 1;
+      }
+    }
+    const ticketId = `${prefix}${String(sequence).padStart(3, '0')}`;
+    const senderName = user ? `${user.firstName} ${user.lastName}` : 'Customer';
+
+    // Create a support ticket linked to this project
+    const newTicket = new Ticket({
+      ticketId,
+      userId: req.user.userId,
+      subject: `Reported Issue: ${project.title}`,
+      category: 'Technical',
+      description: notes.trim(),
+      subtext: notes.trim().substring(0, 60),
+      priority: 'High',
+      status: 'OPEN',
+      projectId: project._id,
+      lastActivity: new Date(),
+      messages: [{
+        senderId: req.user.userId,
+        senderName,
+        senderRole: 'customer',
+        message: notes.trim(),
+        createdAt: new Date()
+      }]
+    });
+    await newTicket.save();
+
+    // Update project status to Reported and add to reportedIssues
+    project.status = 'Reported';
+    project.statusHistory.push({ status: 'Reported' });
+    if (!project.reportedIssues) {
+      project.reportedIssues = [];
+    }
+    project.reportedIssues.push({
+      notes: notes.trim(),
+      ticketId,
+      reportedAt: new Date(),
+      status: 'Open'
+    });
+
+    const updatedProject = await project.save();
+
+    // Create notification
+    await Notification.create({
+      userId: req.user.userId,
+      projectId: project._id,
+      title: 'Issue Reported',
+      message: `Issue reported for project "${project.title}": ${notes.trim().substring(0, 80)}`,
+      type: 'PROJECT_UPDATE'
+    });
+
+    if (req.io) {
+      req.io.to('admin').emit('projectUpdated', updatedProject);
+      req.io.to('admin').emit('newTicket', newTicket);
+      req.io.to('admin').emit('newNotification');
+      req.io.to(updatedProject.userId.toString()).emit('projectUpdated', updatedProject);
+    }
+
+    res.json({
+      message: 'Issue reported successfully! Our technical team has been notified.',
+      project: updatedProject,
+      ticket: newTicket
+    });
+  } catch (error) {
+    console.error('Error reporting issue:', error);
+    res.status(500).json({ message: 'Server error while reporting issue' });
+  }
+});
+
 module.exports = router;

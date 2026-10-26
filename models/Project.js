@@ -109,6 +109,24 @@ const projectSchema = new mongoose.Schema({
     enum: ['Pending Quote', 'Quote Ready', 'Approved', 'In Progress', 'QA Review', 'Delivered', 'Under Review', 'Completed', 'Cancelled', 'Requested', 'Quoted', 'Rejected', 'Revision Requested', 'Ongoing', 'Reported'],
     default: 'Pending Quote'
   },
+  reportedIssues: [{
+    notes: {
+      type: String,
+      required: true
+    },
+    ticketId: {
+      type: String
+    },
+    reportedAt: {
+      type: Date,
+      default: Date.now
+    },
+    status: {
+      type: String,
+      enum: ['Open', 'Under Review', 'Resolved'],
+      default: 'Open'
+    }
+  }],
   statusHistory: [{
     status: String,
     date: {
