@@ -109,6 +109,30 @@ const projectSchema = new mongoose.Schema({
     enum: ['Pending Quote', 'Quote Ready', 'Approved', 'In Progress', 'QA Review', 'Delivered', 'Under Review', 'Completed', 'Cancelled', 'Requested', 'Quoted', 'Rejected', 'Revision Requested', 'Ongoing', 'Reported'],
     default: 'Pending Quote'
   },
+  revisionRequest: {
+    reason: {
+      type: String
+    },
+    description: {
+      type: String
+    },
+    requestedAt: {
+      type: Date,
+      default: Date.now
+    }
+  },
+  revisionHistory: [{
+    reason: {
+      type: String
+    },
+    description: {
+      type: String
+    },
+    requestedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   reportedIssues: [{
     notes: {
       type: String,
@@ -134,6 +158,21 @@ const projectSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
+  couponCode: {
+    type: String,
+    trim: true
+  },
+  couponApplied: {
+    code: String,
+    hours: Number,
+    hoursApplied: Number,
+    hoursRetained: Number,
+    discountType: String,
+    discountValue: Number,
+    discountAmount: Number,
+    originalAmount: Number,
+    finalAmount: Number
+  },
   paymentDeadline: {
     type: Date
   },

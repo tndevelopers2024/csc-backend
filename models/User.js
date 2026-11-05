@@ -16,7 +16,10 @@ const userSchema = new mongoose.Schema({
     engineerAssign: { type: Boolean, default: false },
     fileDelivery: { type: Boolean, default: true },
     invoiceGen: { type: Boolean, default: true }
-  }
+  },
+  resetPasswordOtp: { type: String },
+  resetPasswordToken: { type: String },
+  resetPasswordExpires: { type: Date }
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

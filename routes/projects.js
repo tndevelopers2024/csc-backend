@@ -36,7 +36,7 @@ router.post('/', auth, upload.fields([
     const {
       title, description, appType, industry, cadOutput, 
       accuracy, partSize, turnaround, nda, useFreeHours,
-      uploadMethod, links
+      uploadMethod, links, couponCode
     } = req.body;
 
     // Map uploaded files to schema structure
@@ -54,6 +54,23 @@ router.post('/', auth, upload.fields([
     const scanFiles = mapFiles(req.files['scanFiles']);
     const referenceImages = mapFiles(req.files['referenceImages']);
 
+    let couponAppliedData = undefined;
+    const cleanCouponCode = couponCode?.trim()?.toUpperCase();
+    if (cleanCouponCode) {
+      const Coupon = require('../models/Coupon');
+      const foundCoupon = await Coupon.findOne({ 
+        code: cleanCouponCode, 
+        userId: req.user.userId,
+        isUsed: false
+      });
+      if (foundCoupon && (!foundCoupon.expiresAt || new Date(foundCoupon.expiresAt) >= new Date())) {
+        couponAppliedData = {
+          code: foundCoupon.code,
+          hours: foundCoupon.hours
+        };
+      }
+    }
+
     const newProject = new Project({
       userId: req.user.userId,
       title,
@@ -70,6 +87,8 @@ router.post('/', auth, upload.fields([
       links: links ? (Array.isArray(links) ? links : [links]) : [],
       scanFiles,
       referenceImages,
+      couponCode: cleanCouponCode || undefined,
+      couponApplied: couponAppliedData,
       statusHistory: [{ status: 'Pending Quote' }]
     });
 
@@ -168,7 +187,7 @@ router.get('/:id', auth, async (req, res) => {
 // Update a project's status (e.g. Approve or Request Revision)
 router.put('/:id/status', auth, upload.single('poFile'), async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, reason, description } = req.body;
     
     // Validate status to prevent arbitrary changes by customer
     const allowedStatuses = ['Approved', 'Revision Requested', 'Rejected'];
@@ -192,6 +211,17 @@ router.put('/:id/status', auth, upload.single('poFile'), async (req, res) => {
     
     project.status = status;
     project.statusHistory.push({ status });
+
+    if (status === 'Revision Requested') {
+      const revData = {
+        reason: reason || 'Scope Change',
+        description: description || '',
+        requestedAt: new Date()
+      };
+      project.revisionRequest = revData;
+      if (!project.revisionHistory) project.revisionHistory = [];
+      project.revisionHistory.push(revData);
+    }
 
     if (req.file) {
       project.poFile = {
