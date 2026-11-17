@@ -117,22 +117,22 @@ router.get('/stats', auth, async (req, res) => {
     // Total Orders
     const totalOrders = await Project.countDocuments({ userId });
     
-    // Quotes pending (Pending Quote, Quote Ready)
+    // Quotes pending (Pending Quote, Quote Ready, Under Review, Revision Requested)
     const quotesPending = await Project.countDocuments({
       userId,
-      status: { $in: ['Pending Quote', 'Quote Ready'] }
+      status: { $in: ['Pending Quote', 'Quote Ready', 'Revision Requested', 'Requested', 'Quoted', 'Under Review'] }
     });
     
-    // Active projects (Approved, In Progress, Under Review)
+    // Active projects (Approved, In Progress, QA Review, Ongoing)
     const activeProjects = await Project.countDocuments({
       userId,
-      status: { $in: ['Approved', 'In Progress', 'Under Review'] }
+      status: { $in: ['Approved', 'In Progress', 'QA Review', 'Ongoing'] }
     });
     
     // Completed projects
     const completed = await Project.countDocuments({
       userId,
-      status: 'Completed'
+      status: { $in: ['Completed', 'Delivered'] }
     });
     
     res.json({
