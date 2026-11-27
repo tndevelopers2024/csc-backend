@@ -67,7 +67,7 @@ router.get('/projects/stats', async (req, res) => {
 router.get('/projects', async (req, res) => {
   try {
     const projects = await Project.find()
-      .populate('userId', 'firstName lastName email mobilePrefix mobile country')
+      .populate('userId', 'firstName lastName email mobilePrefix mobile country freeHoursRemaining')
       .sort({ createdAt: -1 });
       
     res.json(projects);
@@ -118,7 +118,7 @@ router.get('/users/:id', async (req, res) => {
 router.get('/projects/:id', async (req, res) => {
   try {
     const project = await Project.findById(req.params.id)
-      .populate('userId', 'firstName lastName email mobilePrefix mobile country');
+      .populate('userId', 'firstName lastName email mobilePrefix mobile country freeHoursRemaining');
       
     if (!project) {
       return res.status(404).json({ message: 'Project not found' });
